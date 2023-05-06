@@ -1,8 +1,9 @@
 \app - корневая папка проекта
-\app\js
-\app\js\main.js
-\app\scss
-\app\scss\style.scss
-\app\index.html
+\app\fonts 
+\app\html - страницы
+\app\html\blocks - блоки страницы
+\app\images - картинки
+\app\js - скрипты (main.js)
+\app\scss - стили (style.scss)
 \www - папка для локального показа (без минификации)
-\build - папка для prod (с минификацией)
+\dist - папка для prod (с минификацией)

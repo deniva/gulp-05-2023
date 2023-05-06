@@ -1,5 +1,6 @@
-const { src, dest, watch, parallel, series } = require('gulp');
+const { src, dest, watch, parallel, series, tree } = require('gulp');
 
+const gulpIf = require('gulp-if');
 const scss = require('gulp-sass')(require('sass'));
 const concat = require('gulp-concat');
 const uglify = require('gulp-uglify-es').default;
@@ -12,7 +13,9 @@ const webp = require('gulp-webp');
 const imagemin = require('gulp-imagemin');
 const newer = require('gulp-newer');
 const svgSprite = require('gulp-svg-sprite');
-const gulpIf = require('gulp-if');
+const fonter = require('gulp-fonter-unx');
+const ttf2woff2 = require('gulp-ttf2woff2');
+const include = require('gulp-include');
 
 const appDir = 'app';
 const devDir = 'www';
@@ -23,7 +26,10 @@ destDir = (isProd) => (isProd ? prodDir : devDir);
 htmlDev = () => _html(false);
 htmlProd = () => _html(true);
 _html = (isProd) => {
-    return src(appDir + '/index.html')
+    return src(appDir + '/html/*.html')
+        .pipe(include({
+            includePaths: appDir + '/html/block'
+        }))
         .pipe(dest(destDir(isProd)))
         .pipe(gulpIf(!isProd, browserSync.stream()));
 }
@@ -73,12 +79,35 @@ _image = (isProd) => {
         .pipe(dest(destDirImages));
 }
 
-// function sprite() {
-//     return src(``)
-// }
+spriteDev = () => _sprite(false);
+spriteProd = () => _sprite(true);
+_sprite = (isProd) => {
+    return src(appDir + '/images/*.svg')
+        .pipe(svgSprite({
+            mode: {
+                stack: {
+                    sprite: '../sprive.svg',
+                    example: true,
+                }
+            }
+        }))
+        .pipe(dest(destDir(isProd) + '/images'));
+}
 
 
-function watching() {
+fontDev = () => _font(false);
+fontProd = () => _font(true);
+_font = (isProd) => {
+    return src(appDir + '/fonts/*.*')
+        .pipe(fonter({
+            formats: ['woff', 'ttf']
+        }))
+        .pipe(src(destDir(isProd) + '/fonts/*.ttf'))
+        .pipe(ttf2woff2())
+        .pipe(dest(destDir(isProd)));
+}
+
+watching = () => {
     browserSync.init({
         port: 3100,
         server: {
@@ -88,7 +117,7 @@ function watching() {
     watch([appDir + '/images'], imageDev);
     watch([appDir + '/scss'], styleDev);
     watch([appDir + '/js'], scriptDev);
-    watch([appDir + '/*.html'], htmlDev);
+    watch([appDir + '/html/**/*.html'], htmlDev);
 }
 
 cleanDev = () => _clean(false);
@@ -97,6 +126,8 @@ _clean = (isProd) => {
     return src(destDir(isProd) + '/', { allowEmpty: true }).pipe(clean());
 }
 
-exports.default = series(cleanDev, imageDev, parallel(htmlDev, styleDev, scriptDev, watching));
+exports.default = series(cleanDev, imageDev, spriteDev, parallel(htmlDev, fontDev, styleDev, scriptDev, watching));
 exports.clean = parallel(cleanDev, cleanProd);
-exports.dist = series(cleanProd, htmlProd, imageProd, styleProd, scriptProd);
+exports.dist = series(cleanProd, htmlProd, fontProd, imageProd, spriteProd, styleProd, scriptProd);
+
+exports.htmlDev = htmlDev;
