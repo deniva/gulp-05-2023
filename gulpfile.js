@@ -11,114 +11,92 @@ const avif = require('gulp-avif');
 const webp = require('gulp-webp');
 const imagemin = require('gulp-imagemin');
 const newer = require('gulp-newer');
+const svgSprite = require('gulp-svg-sprite');
+const gulpIf = require('gulp-if');
 
 const appDir = 'app';
-const wwwDir = 'www';
-const buildDir = 'build';
+const devDir = 'www';
+const prodDir = 'dist';
 
-function html() {
-    return src(`${appDir}/index.html`)
-        .pipe(dest(`${wwwDir}/`))
-        .pipe(browserSync.stream());
+destDir = (isProd) => (isProd ? prodDir : devDir);
+
+htmlDev = () => _html(false);
+htmlProd = () => _html(true);
+_html = (isProd) => {
+    return src(appDir + '/index.html')
+        .pipe(dest(destDir(isProd)))
+        .pipe(gulpIf(!isProd, browserSync.stream()));
 }
 
-function htmlMin() {
-    return src(`${appDir}/index.html`)
-        .pipe(dest(`${buildDir}/`));
-}
 
-function scripts() {
-    return src(`${appDir}/js/main.js`)
+scriptDev = () => _script(false);
+scriptProd = () => _script(true);
+_script = (isProd) => {
+    return src(appDir + '/js/main.js')
         .pipe(concat('main.js'))
-        .pipe(dest(`${wwwDir}/js`))
-        .pipe(browserSync.stream());
+        .pipe(gulpIf(isProd, uglify()))
+        .pipe(dest(destDir(isProd) + '/js'))
+        .pipe(gulpIf(!isProd, browserSync.stream()));
 }
 
-function scriptsMin() {
-    return src(`${appDir}/js/main.js`)
-        .pipe(concat('main.js'))
-        .pipe(uglify())
-        .pipe(dest(`${buildDir}/js`));
-}
 
-function styles() {
-    return src(`${appDir}/scss/style.scss`)
+styleDev = () => _style(false);
+styleProd = () => _style(true);
+_style = (isProd) => {
+    return src(appDir + '/scss/style.scss')
         .pipe(concat('style.css'))
         .pipe(scss())
         .pipe(postcss([
             autoprefixer(),
         ]))
-        .pipe(dest(`${wwwDir}/css`))
-        .pipe(browserSync.stream());
+        .pipe(dest(destDir(isProd) + '/css'))
+        .pipe(gulpIf(!isProd, browserSync.stream()));
+
 }
 
-function stylesMin() {
-    return src(`${appDir}/scss/style.scss`)
-        .pipe(concat('style.css'))
-        .pipe(scss({ outputStyle: 'compressed' }))
-        .pipe(postcss([
-            autoprefixer(),
-        ]))
-        .pipe(dest(`${buildDir}/css`));
-}
-
-function images() {
-    return src([`${appDir}/images/*.*`, `!${appDir}/images/*.svg`])
-        .pipe(newer(`${wwwDir}/images`))
-        .pipe(newer(`${buildDir}/images`))
+imageDev = () => _image(false);
+imageProd = () => _image(true);
+_image = (isProd) => {
+    const destDirImages = destDir(isProd) + '/images/';
+    return src([appDir + '/images/*.*', '!' + appDir + '/images/*.svg'])
+        .pipe(newer(destDirImages))
         .pipe(avif({ quality: 50 }))
 
-        .pipe(newer(`${wwwDir}/images`))
-        .pipe(newer(`${buildDir}/images`))
-        .pipe(src(`${appDir}/images/*.*`))
+        .pipe(src(appDir + '/images/*.*'))
+        .pipe(newer(destDirImages))
         .pipe(webp())
 
-        // .pipe(newer([`${wwwDir}/images`, `${buildDir}/images`]))
-        .pipe(src(`${appDir}/images/*.*`))
+        .pipe(src(appDir + '/images/*.*'))
+        .pipe(newer(destDirImages))
         .pipe(imagemin())
 
-        .pipe(dest(`${wwwDir}/images`))
-        .pipe(dest(`${buildDir}/images`));
+        .pipe(dest(destDirImages));
 }
+
+// function sprite() {
+//     return src(``)
+// }
+
 
 function watching() {
     browserSync.init({
         port: 3100,
         server: {
-            baseDir: `${wwwDir}/`,
+            baseDir: destDir(false) + '/',
         }
     });
-    watch([`${appDir}/scss/style.scss`], styles);
-    watch([`${appDir}/js/main.js`], scripts);
-    watch([`${appDir}/*.html`], html);
-    // watch([`${appDir}/*.html`]).on('change', browserSync.reload);
+    watch([appDir + '/images'], imageDev);
+    watch([appDir + '/scss'], styleDev);
+    watch([appDir + '/js'], scriptDev);
+    watch([appDir + '/*.html'], htmlDev);
 }
 
-function cleanBuild() {
-    return src(buildDir).pipe(clean());
+cleanDev = () => _clean(false);
+cleanProd = () => _clean(true);
+_clean = (isProd) => {
+    return src(destDir(isProd) + '/', { allowEmpty: true }).pipe(clean());
 }
 
-function cleanWww() {
-    return src(wwwDir).pipe(clean());
-}
-
-function building() {
-    return src([
-        'app/css/style.min.css',
-        'app/js/main.min.js',
-        'app/**/*.html'
-    ], { base: 'app' })
-        .pipe(dest('dist'));
-}
-
-exports.clean = parallel(cleanBuild, cleanWww);
-exports.default = series(cleanWww, parallel(html, styles, scripts, watching));
-exports.build = series(cleanBuild, htmlMin, stylesMin, scriptsMin);
-
-
-exports.images = images;
-// exports.styles = styles;
-// exports.scripts = scripts;
-// exports.watching = watching;
-
-// exports.build = series(cleanDist, building);
+exports.default = series(cleanDev, imageDev, parallel(htmlDev, styleDev, scriptDev, watching));
+exports.clean = parallel(cleanDev, cleanProd);
+exports.dist = series(cleanProd, htmlProd, imageProd, styleProd, scriptProd);

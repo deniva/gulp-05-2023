@@ -13,3 +13,10 @@
 body {
     background-color: salmon;
 }
+
+img {
+    width: 400px;
+    height: 400px;
+    object-fit: fill;
+    border: 3px solid blue;
+}
